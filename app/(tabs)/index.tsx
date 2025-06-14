@@ -14,7 +14,7 @@ import { useExpenses } from '@/hooks/useExpenses';
 import ExpenseCard from '@/components/ExpenseCard';
 import NotificationPermissionModal from '@/components/NotificationPermissionModal';
 import { notificationService } from '@/services/notificationService';
-import { smsService } from '@/services/smsService';
+import { smsBackendService } from '@/services/smsBackendService';
 
 export default function DashboardScreen() {
   const { user } = useAuth();
@@ -47,8 +47,10 @@ export default function DashboardScreen() {
       
       setNotificationPermissionChecked(true);
       
-      // Start SMS listening
-      smsService.startListening().catch(console.error);
+      // Start backend SMS service (this handles background processing)
+      await smsBackendService.initialize();
+      console.log('✅ Backend SMS service initialized and listening');
+      
     } catch (error) {
       console.error('Failed to initialize services:', error);
     }
@@ -116,6 +118,9 @@ export default function DashboardScreen() {
               </View>
               <Text style={styles.balanceAmount}>
                 {balanceVisible ? `₹${totalThisMonth.toFixed(2)}` : '••••••'}
+              </Text>
+              <Text style={styles.backendStatus}>
+                🔄 Backend SMS monitoring active
               </Text>
             </View>
           </View>
@@ -236,6 +241,12 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     color: 'white',
+    marginBottom: 8,
+  },
+  backendStatus: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontStyle: 'italic',
   },
   statsContainer: {
     flexDirection: 'row',

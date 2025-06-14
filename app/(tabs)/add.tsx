@@ -12,7 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Plus, DollarSign, Store, Calendar, Zap } from 'lucide-react-native';
 import { useExpenses } from '@/hooks/useExpenses';
-import { smsService } from '@/services/smsService';
+import { smsBackendService } from '@/services/smsBackendService';
 import CategoryModal from '@/components/CategoryModal';
 
 export default function AddExpenseScreen() {
@@ -57,16 +57,11 @@ export default function AddExpenseScreen() {
   };
 
   const handleSimulateTransaction = async () => {
-    if (Platform.OS !== 'web') {
-      Alert.alert('Info', 'SMS simulation is only available on web for testing');
-      return;
-    }
-
     try {
-      await smsService.simulateTransaction();
-      Alert.alert('Success', 'Test transaction processed! Check notifications.');
+      await smsBackendService.simulateBackendSMS();
+      Alert.alert('Success', 'Test transaction processed via backend! Check notifications.');
     } catch (error) {
-      Alert.alert('Error', 'Failed to simulate transaction');
+      Alert.alert('Error', 'Failed to simulate backend transaction');
     }
   };
 
@@ -150,22 +145,20 @@ export default function AddExpenseScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Test Section (Web Only) */}
-        {Platform.OS === 'web' && (
-          <View style={styles.testSection}>
-            <Text style={styles.testTitle}>Testing (Web Only)</Text>
-            <TouchableOpacity
-              style={styles.testButton}
-              onPress={handleSimulateTransaction}
-            >
-              <Zap color="#F97316" size={20} />
-              <Text style={styles.testButtonText}>Simulate SMS Transaction</Text>
-            </TouchableOpacity>
-            <Text style={styles.testDescription}>
-              This will simulate receiving an SMS transaction and show a notification
-            </Text>
-          </View>
-        )}
+        {/* Test Section */}
+        <View style={styles.testSection}>
+          <Text style={styles.testTitle}>Testing Backend SMS Service</Text>
+          <TouchableOpacity
+            style={styles.testButton}
+            onPress={handleSimulateTransaction}
+          >
+            <Zap color="#F97316" size={20} />
+            <Text style={styles.testButtonText}>Simulate Backend SMS Transaction</Text>
+          </TouchableOpacity>
+          <Text style={styles.testDescription}>
+            This will simulate receiving an SMS transaction via the backend service and show a notification
+          </Text>
+        </View>
       </View>
 
       {/* Category Modal */}
@@ -296,31 +289,31 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#F59E0B',
+    borderColor: '#3B82F6',
   },
   testTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#92400E',
+    color: '#1E40AF',
     marginBottom: 12,
   },
   testButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#EBF8FF',
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     gap: 8,
   },
   testButtonText: {
-    color: '#92400E',
+    color: '#1E40AF',
     fontSize: 14,
     fontWeight: '500',
   },
   testDescription: {
     fontSize: 12,
-    color: '#A3A3A3',
+    color: '#6B7280',
     fontStyle: 'italic',
   },
 });

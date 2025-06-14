@@ -11,6 +11,7 @@ import {
 import { User, Bell, Shield, Smartphone, LogOut, ExternalLink, TestTube, CircleCheck as CheckCircle, Circle as XCircle, Zap, Wrench } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { smsService } from '@/services/smsService';
+import { smsBackendService } from '@/services/smsBackendService';
 import { notificationService } from '@/services/notificationService';
 import { backgroundSmsService } from '@/services/backgroundSmsService';
 import BackgroundSMSInfo from '@/components/BackgroundSMSInfo';
@@ -18,8 +19,7 @@ import BackgroundSMSInfo from '@/components/BackgroundSMSInfo';
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const [notificationStatus, setNotificationStatus] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
-  const [smsPermissionStatus, setSmsPermissionStatus] = useState(false);
-  const [smsListeningStatus, setSmsListeningStatus] = useState(false);
+  const [backendServiceStatus, setBackendServiceStatus] = useState(false);
 
   useEffect(() => {
     checkPermissionStatuses();
@@ -41,12 +41,9 @@ export default function SettingsScreen() {
     const notifStatus = await notificationService.checkPermissionStatus();
     setNotificationStatus(notifStatus);
 
-    // Check SMS permissions and listening status
-    if (Platform.OS === 'android') {
-      const smsPermissions = await smsService.getPermissionStatus();
-      setSmsPermissionStatus(smsPermissions);
-      setSmsListeningStatus(smsService.isCurrentlyListening());
-    }
+    // Check backend service status
+    const backendStatus = smsBackendService.isCurrentlyListening();
+    setBackendServiceStatus(backendStatus);
   };
 
   const handleSignOut = async () => {
@@ -59,8 +56,8 @@ export default function SettingsScreen() {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
-            // Stop SMS listening and background service before signing out
-            smsService.stopListening();
+            // Stop backend service before signing out
+            smsBackendService.cleanup();
             backgroundSmsService.cleanup();
             
             const { error } = await signOut();
@@ -73,37 +70,25 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleSMSPermissions = async () => {
-    if (Platform.OS === 'web') {
-      Alert.alert(
-        'SMS Permissions',
-        'SMS reading is not available on web. This feature requires a native Android app.'
-      );
-      return;
-    }
-
-    if (Platform.OS !== 'android') {
-      Alert.alert(
-        'SMS Permissions',
-        'SMS reading is only available on Android devices.'
-      );
-      return;
-    }
-
+  const handleBackendSMSService = async () => {
     try {
-      await smsService.startListening();
-      
-      // Refresh status
-      await checkPermissionStatuses();
-      
-      Alert.alert(
-        'Success', 
-        'SMS permissions granted and listening started! The app will now automatically detect transaction SMS messages.\n\nNote: Background detection may be limited on newer Android versions.'
-      );
+      if (!backendServiceStatus) {
+        await smsBackendService.initialize();
+        setBackendServiceStatus(true);
+        Alert.alert(
+          'Success', 
+          'Backend SMS service started! The service will now monitor SMS messages in the background via DeviceEventEmitter.'
+        );
+      } else {
+        Alert.alert(
+          'Service Active',
+          'Backend SMS service is already running and monitoring messages.'
+        );
+      }
     } catch (error) {
       Alert.alert(
-        'Permission Required',
-        'Please grant SMS reading permissions to automatically detect transactions. You can also enable this in your device settings.'
+        'Service Error',
+        'Failed to start backend SMS service. Make sure the native backend is properly configured.'
       );
     }
   };
@@ -152,7 +137,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleTestTransaction = async () => {
+  const handleTestBackendTransaction = async () => {
     try {
       // Check notification permissions first
       const permissionStatus = await notificationService.checkPermissionStatus();
@@ -169,14 +154,14 @@ export default function SettingsScreen() {
         return;
       }
 
-      await smsService.simulateTransaction();
+      await smsBackendService.simulateBackendSMS();
       Alert.alert(
-        'Test Transaction Sent', 
-        'A simulated transaction has been processed. Check your notifications and expenses list!'
+        'Backend Test Transaction Sent', 
+        'A simulated transaction has been processed via the backend service. Check your notifications and expenses list!'
       );
     } catch (error) {
-      console.error('Test transaction error:', error);
-      Alert.alert('Error', 'Failed to simulate transaction');
+      console.error('Backend test transaction error:', error);
+      Alert.alert('Error', 'Failed to simulate backend transaction');
     }
   };
 
@@ -184,7 +169,7 @@ export default function SettingsScreen() {
     try {
       Alert.alert(
         'Pattern Testing',
-        'This will test all SMS patterns and log results to console. Check the developer console for detailed output.',
+        'This will test all SMS patterns via the backend service and log results to console.',
         [
           { text: 'Cancel', style: 'cancel' },
           { 
@@ -206,16 +191,17 @@ export default function SettingsScreen() {
       const capabilities = await backgroundSmsService.checkBackgroundCapabilities();
       
       Alert.alert(
-        'Background Service Status',
+        'Backend Service Status',
+        `Backend SMS service: ${backendServiceStatus ? 'Active' : 'Inactive'}\n\n` +
         `Can receive in background: ${capabilities.canReceiveInBackground ? 'Yes' : 'Limited'}\n\n` +
         `Limitations: ${capabilities.limitations.length}\n` +
         `Recommendations: ${capabilities.recommendations.length}\n\n` +
         'Check console for detailed information.'
       );
       
-      console.log('Background SMS Capabilities:', capabilities);
+      console.log('Backend SMS Service Capabilities:', capabilities);
     } catch (error) {
-      Alert.alert('Error', 'Failed to check background capabilities');
+      Alert.alert('Error', 'Failed to check backend service capabilities');
     }
   };
 
@@ -241,18 +227,12 @@ export default function SettingsScreen() {
     }
   };
 
-  const getSMSStatusText = () => {
-    if (Platform.OS !== 'android') return 'Not available';
-    if (!smsPermissionStatus) return 'Permission needed';
-    if (smsListeningStatus) return 'Active';
-    return 'Inactive';
+  const getBackendServiceStatusText = () => {
+    return backendServiceStatus ? 'Active' : 'Inactive';
   };
 
-  const getSMSStatusColor = () => {
-    if (Platform.OS !== 'android') return '#9CA3AF';
-    if (!smsPermissionStatus) return '#F59E0B';
-    if (smsListeningStatus) return '#10B981';
-    return '#EF4444';
+  const getBackendServiceStatusColor = () => {
+    return backendServiceStatus ? '#10B981' : '#EF4444';
   };
 
   const settingsGroups = [
@@ -268,7 +248,7 @@ export default function SettingsScreen() {
       ],
     },
     {
-      title: 'Permissions',
+      title: 'Backend Services',
       items: [
         {
           icon: Bell,
@@ -280,12 +260,11 @@ export default function SettingsScreen() {
         },
         {
           icon: Smartphone,
-          title: 'SMS Access',
-          subtitle: getSMSStatusText(),
-          onPress: handleSMSPermissions,
-          disabled: Platform.OS !== 'android',
-          statusColor: getSMSStatusColor(),
-          statusIcon: (Platform.OS === 'android' && smsPermissionStatus && smsListeningStatus) ? CheckCircle : XCircle,
+          title: 'Backend SMS Service',
+          subtitle: getBackendServiceStatusText(),
+          onPress: handleBackendSMSService,
+          statusColor: getBackendServiceStatusColor(),
+          statusIcon: backendServiceStatus ? CheckCircle : XCircle,
         },
       ],
     },
@@ -300,9 +279,9 @@ export default function SettingsScreen() {
         },
         {
           icon: TestTube,
-          title: 'Test Transaction',
-          subtitle: 'Simulate SMS transaction detection',
-          onPress: handleTestTransaction,
+          title: 'Test Backend Transaction',
+          subtitle: 'Simulate backend SMS transaction detection',
+          onPress: handleTestBackendTransaction,
         },
         {
           icon: Zap,
@@ -312,8 +291,8 @@ export default function SettingsScreen() {
         },
         {
           icon: Wrench,
-          title: 'Background Service Test',
-          subtitle: 'Check background SMS capabilities',
+          title: 'Backend Service Test',
+          subtitle: 'Check backend SMS service capabilities',
           onPress: handleBackgroundServiceTest,
         },
       ],
@@ -349,31 +328,29 @@ export default function SettingsScreen() {
         <Text style={styles.title}>Settings</Text>
       </View>
 
-      {/* Background SMS Info Component */}
+      {/* Backend SMS Info Component */}
       <BackgroundSMSInfo />
 
-      {/* Enhanced SMS Status Info */}
-      {Platform.OS === 'android' && (
-        <View style={styles.statusCard}>
-          <Text style={styles.statusTitle}>SMS Detection Status</Text>
-          <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>Permissions:</Text>
-            <Text style={[styles.statusValue, { color: getSMSStatusColor() }]}>
-              {smsPermissionStatus ? 'Granted' : 'Not Granted'}
-            </Text>
-          </View>
-          <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>Listening:</Text>
-            <Text style={[styles.statusValue, { color: getSMSStatusColor() }]}>
-              {smsListeningStatus ? 'Active' : 'Inactive'}
-            </Text>
-          </View>
-          <Text style={styles.statusNote}>
-            Enhanced pattern matching now detects spam, transactions, and extracts merchant names automatically.
-            Background detection may be limited on Android 8+.
+      {/* Enhanced Backend Service Status Info */}
+      <View style={styles.statusCard}>
+        <Text style={styles.statusTitle}>Backend SMS Service Status</Text>
+        <View style={styles.statusRow}>
+          <Text style={styles.statusLabel}>Service Status:</Text>
+          <Text style={[styles.statusValue, { color: getBackendServiceStatusColor() }]}>
+            {getBackendServiceStatusText()}
           </Text>
         </View>
-      )}
+        <View style={styles.statusRow}>
+          <Text style={styles.statusLabel}>Communication:</Text>
+          <Text style={[styles.statusValue, { color: '#10B981' }]}>
+            DeviceEventEmitter
+          </Text>
+        </View>
+        <Text style={styles.statusNote}>
+          Backend service uses DeviceEventEmitter to communicate SMS data from native backend to React Native frontend.
+          This approach works even when the app is in background.
+        </Text>
+      </View>
 
       {/* Settings Groups */}
       {settingsGroups.map((group, groupIndex) => (
@@ -449,13 +426,10 @@ export default function SettingsScreen() {
 
       {/* App Info */}
       <View style={styles.appInfo}>
-        <Text style={styles.appInfoText}>SmartExpense v1.0.0</Text>
+        <Text style={styles.appInfoText}>SmartExpense v2.0.0</Text>
         <Text style={styles.appInfoText}>Built with Expo & Supabase</Text>
-        <Text style={styles.appInfoText}>Enhanced SMS Pattern Matching v2.0</Text>
-        <Text style={styles.appInfoText}>Background Service v1.0</Text>
-        {Platform.OS === 'android' && (
-          <Text style={styles.appInfoText}>SMS Detection: {smsListeningStatus ? 'Active' : 'Inactive'}</Text>
-        )}
+        <Text style={styles.appInfoText}>Backend SMS Service with DeviceEventEmitter</Text>
+        <Text style={styles.appInfoText}>Background Processing: {backendServiceStatus ? 'Active' : 'Inactive'}</Text>
         {notificationService.getExpoPushToken() && (
           <Text style={styles.tokenText}>
             Push Token: {notificationService.getExpoPushToken()?.slice(0, 20)}...
