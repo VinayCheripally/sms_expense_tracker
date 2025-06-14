@@ -1,4 +1,4 @@
-package dev.vinay.smslistener
+package dev.vinay.expensetracker
 
 import android.content.BroadcastReceiver
 import android.content.Context
