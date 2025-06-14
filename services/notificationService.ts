@@ -17,9 +17,9 @@ export class NotificationService {
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
-    
+
     console.log('Initializing notification service...');
-    
+
     // Configure notification behavior
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
@@ -34,7 +34,7 @@ export class NotificationService {
 
     // Set up notification listeners
     this.setupNotificationListeners();
-    
+
     this.isInitialized = true;
     console.log('Notification service initialized');
   }
@@ -61,7 +61,8 @@ export class NotificationService {
     }
 
     if (Device.isDevice || Platform.OS === 'web') {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
 
       if (existingStatus !== 'granted') {
@@ -77,17 +78,19 @@ export class NotificationService {
       try {
         if (Platform.OS !== 'web') {
           const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-          
+
           if (!projectId) {
             console.error('EAS project ID not found in app.json configuration');
             return null;
           }
-          
-          token = (await Notifications.getExpoPushTokenAsync({
-            projectId,
-          })).data;
+
+          token = (
+            await Notifications.getExpoPushTokenAsync({
+              projectId,
+            })
+          ).data;
         }
-        
+
         this.expoPushToken = token;
         console.log('Expo Push Token:', token);
       } catch (error) {
@@ -101,21 +104,23 @@ export class NotificationService {
   }
 
   private setupNotificationListeners(): void {
-    Notifications.addNotificationReceivedListener(notification => {
+    Notifications.addNotificationReceivedListener((notification) => {
       console.log('Notification received:', notification);
     });
 
-    Notifications.addNotificationResponseReceivedListener(response => {
+    Notifications.addNotificationResponseReceivedListener((response) => {
       console.log('Notification response:', response);
       const data = response.notification.request.content.data;
-      
+
       if (data.type === 'transaction') {
         console.log('Transaction notification tapped:', data);
       }
     });
   }
 
-  async checkPermissionStatus(): Promise<'granted' | 'denied' | 'undetermined'> {
+  async checkPermissionStatus(): Promise<
+    'granted' | 'denied' | 'undetermined'
+  > {
     const { status } = await Notifications.getPermissionsAsync();
     return status;
   }
@@ -130,27 +135,35 @@ export class NotificationService {
     }
   }
 
-  async showTransactionNotification(amount: number, merchant: string): Promise<void> {
+  async showTransactionNotification(
+    amount: number,
+    merchant: string
+  ): Promise<void> {
     try {
       console.log('Attempting to show transaction notification...');
-      
+
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: '💳 New Transaction Detected',
-          body: `₹${amount.toFixed(2)} spent at ${merchant}. Tap to categorize.`,
-          data: { 
-            type: 'transaction', 
-            amount, 
+          body: `₹${amount.toFixed(
+            2
+          )} spent at ${merchant}. Tap to categorize.`,
+          data: {
+            type: 'transaction',
+            amount,
             merchant,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           },
           sound: true,
           priority: Notifications.AndroidNotificationPriority.HIGH,
         },
         trigger: null,
       });
-      
-      console.log('Transaction notification scheduled with ID:', notificationId);
+
+      console.log(
+        'Transaction notification scheduled with ID:',
+        notificationId
+      );
     } catch (error) {
       console.error('Failed to show transaction notification:', error);
     }
@@ -233,7 +246,7 @@ export class NotificationService {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '🎉 Welcome to SmartExpense!',
-          body: 'Your expense tracking is now active. We\'ll notify you of new transactions.',
+          body: "Your expense tracking is now active. We'll notify you of new transactions.",
           data: { type: 'welcome' },
           sound: true,
         },
@@ -247,7 +260,7 @@ export class NotificationService {
   async testNotification(): Promise<void> {
     try {
       console.log('Sending test notification...');
-      
+
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: '🧪 Test Notification',
@@ -258,7 +271,7 @@ export class NotificationService {
         },
         trigger: null,
       });
-      
+
       console.log('Test notification scheduled with ID:', notificationId);
     } catch (error) {
       console.error('Failed to show test notification:', error);
