@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "bolt-expo-nativewind",
-    "slug": "bolt-expo-nativewind",
-    "version": "1.0.0",
+    "name": "SmartExpense",
+    "slug": "smart-expense-tracker",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "smartexpense",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
