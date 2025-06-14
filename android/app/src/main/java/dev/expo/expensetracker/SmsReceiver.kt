@@ -1,4 +1,4 @@
-package dev.vinay.expensetracker
+package dev.expo.expensetracker
 
 import android.content.BroadcastReceiver
 import android.content.Context
