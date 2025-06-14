@@ -4,7 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useAuth } from '@/hooks/useAuth';
 import AuthScreen from '@/components/AuthScreen';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+
+// Import headless task registration for Android
+if (Platform.OS === 'android') {
+  require('@/services/smsHeadlessTask');
+}
 
 declare global {
   interface Window {
@@ -18,6 +23,11 @@ export default function RootLayout() {
 
   useEffect(() => {
     window.frameworkReady?.();
+    
+    // Log headless task registration status
+    if (Platform.OS === 'android') {
+      console.log('📋 Headless JS Task for SMS processing registered in root layout');
+    }
   }, []);
 
   if (loading) {

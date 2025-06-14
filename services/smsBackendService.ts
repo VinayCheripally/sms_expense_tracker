@@ -10,12 +10,15 @@ interface TransactionData {
   timestamp: Date;
   originalText: string;
   type: 'debit' | 'credit';
+  sender?: string;
+  processedInBackground?: boolean;
 }
 
 export class SMSBackendService {
   private static instance: SMSBackendService;
   private isListening = false;
   private eventSubscription: any = null;
+  private headlessEventSubscription: any = null;
 
   static getInstance(): SMSBackendService {
     if (!SMSBackendService.instance) {
@@ -25,17 +28,30 @@ export class SMSBackendService {
   }
 
   async initialize(): Promise<void> {
-    console.log('🔄 Initializing Backend SMS Service...');
+    console.log('🔄 Initializing Backend SMS Service with Headless JS support...');
     
     if (Platform.OS !== 'android') {
       console.warn('⚠️ Backend SMS service only available on Android');
       return;
     }
 
+    // Register the headless task
+    this.registerHeadlessTask();
+
     // Start listening for SMS events from native backend
     this.startListening();
     
-    console.log('✅ Backend SMS Service initialized');
+    console.log('✅ Backend SMS Service with Headless JS initialized');
+  }
+
+  private registerHeadlessTask(): void {
+    try {
+      // Import and register the headless task
+      require('./smsHeadlessTask');
+      console.log('📋 Headless JS Task registered successfully');
+    } catch (error) {
+      console.error('❌ Failed to register headless task:', error);
+    }
   }
 
   private startListening(): void {
@@ -44,16 +60,22 @@ export class SMSBackendService {
       return;
     }
 
-    console.log('🎧 Starting DeviceEventEmitter listener for SMS...');
+    console.log('🎧 Starting DeviceEventEmitter listeners for SMS...');
     
-    // Listen for SMS events from the native backend
+    // Listen for regular SMS events from the native backend
     this.eventSubscription = DeviceEventEmitter.addListener(
       'onSmsReceived',
       this.handleSMSFromBackend.bind(this)
     );
 
+    // Listen for headless task events (background processed transactions)
+    this.headlessEventSubscription = DeviceEventEmitter.addListener(
+      'onHeadlessTransactionDetected',
+      this.handleHeadlessTransaction.bind(this)
+    );
+
     this.isListening = true;
-    console.log('✅ DeviceEventEmitter SMS listener started');
+    console.log('✅ DeviceEventEmitter SMS listeners started (regular + headless)');
   }
 
   private async handleSMSFromBackend(smsData: string): Promise<void> {
@@ -81,7 +103,8 @@ export class SMSBackendService {
           merchant: merchant,
           timestamp: new Date(),
           originalText: smsData,
-          type: analysisResult.type
+          type: analysisResult.type,
+          processedInBackground: false
         };
         
         console.log('💰 Transaction Data from Backend:', {
@@ -104,9 +127,29 @@ export class SMSBackendService {
     }
   }
 
+  private async handleHeadlessTransaction(transactionData: TransactionData): Promise<void> {
+    try {
+      console.log('🚀 Received transaction from Headless JS Task:', transactionData);
+      
+      // Process the transaction that was detected in background
+      await this.processTransaction(transactionData);
+      
+      // Show a special notification for background-detected transactions
+      await notificationService.showTransactionNotification(
+        transactionData.amount,
+        `${transactionData.merchant} (Background detected)`
+      );
+      
+      console.log('✅ Headless transaction processed successfully');
+      
+    } catch (error) {
+      console.error('❌ Error handling headless transaction:', error);
+    }
+  }
+
   private async processTransaction(transactionData: TransactionData): Promise<void> {
     try {
-      console.log('⚡ Processing transaction from backend:', transactionData);
+      console.log('⚡ Processing transaction:', transactionData);
       
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -115,20 +158,22 @@ export class SMSBackendService {
         return;
       }
 
-      // Show notification first (this works even in background)
-      console.log('🔔 Showing notification from backend...');
-      await notificationService.showTransactionNotification(
-        transactionData.amount,
-        transactionData.merchant
-      );
+      // Show notification (works even in background)
+      if (!transactionData.processedInBackground) {
+        console.log('🔔 Showing notification...');
+        await notificationService.showTransactionNotification(
+          transactionData.amount,
+          transactionData.merchant
+        );
+      }
 
       // Store in database
-      console.log('💾 Storing transaction from backend in database...');
+      console.log('💾 Storing transaction in database...');
       await this.storePendingTransaction(user.id, transactionData);
       
-      console.log('✅ Transaction from backend processed successfully');
+      console.log('✅ Transaction processed successfully');
     } catch (error) {
-      console.error('❌ Failed to process transaction from backend:', error);
+      console.error('❌ Failed to process transaction:', error);
     }
   }
 
@@ -147,11 +192,11 @@ export class SMSBackendService {
       .insert(expense);
 
     if (error) {
-      console.error('❌ Failed to store transaction from backend:', error);
+      console.error('❌ Failed to store transaction:', error);
       throw error;
     }
     
-    console.log('✅ Transaction from backend stored in database');
+    console.log('✅ Transaction stored in database');
   }
 
   stopListening(): void {
@@ -160,6 +205,11 @@ export class SMSBackendService {
     if (this.eventSubscription) {
       this.eventSubscription.remove();
       this.eventSubscription = null;
+    }
+
+    if (this.headlessEventSubscription) {
+      this.headlessEventSubscription.remove();
+      this.headlessEventSubscription = null;
     }
     
     this.isListening = false;
@@ -172,19 +222,36 @@ export class SMSBackendService {
 
   // Test method to simulate backend SMS
   async simulateBackendSMS(): Promise<void> {
-    console.log('🧪 Simulating backend SMS...');
+    console.log('🧪 Simulating backend SMS with Headless JS support...');
     
     const testMessages = [
       "Your A/c X1234 has been debited for Rs. 250.00 at Amazon on 13-Jun-24. Avl Bal: Rs 25,000.00",
       "Paid ₹150 to Swiggy via UPI. Transaction ID: ABC123456789. Balance: ₹5000",
-      "Transaction of Rs.500 at Big Bazaar using your HDFC Bank Debit Card ending 1234"
+      "Transaction of Rs.500 at Big Bazaar using your HDFC Bank Debit Card ending 1234",
+      "ATM WDL Rs.2000 from SBI ATM at MG Road on 13-Jun-24. Avl Bal: Rs.15000"
     ];
     
     const randomMessage = testMessages[Math.floor(Math.random() * testMessages.length)];
     console.log('📱 Simulating backend SMS:', randomMessage);
     
-    // Simulate the backend sending an SMS event
+    // Simulate both regular and headless processing
     DeviceEventEmitter.emit('onSmsReceived', randomMessage);
+    
+    // Also simulate a headless-detected transaction
+    setTimeout(() => {
+      const transactionData = {
+        amount: 299.99,
+        merchant: 'Test Merchant (Headless)',
+        timestamp: new Date(),
+        originalText: randomMessage,
+        type: 'debit' as const,
+        sender: 'TEST-BANK',
+        processedInBackground: true,
+        headlessTaskTimestamp: Date.now()
+      };
+      
+      DeviceEventEmitter.emit('onHeadlessTransactionDetected', transactionData);
+    }, 2000);
   }
 
   cleanup(): void {

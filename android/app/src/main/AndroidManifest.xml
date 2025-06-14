@@ -9,6 +9,7 @@
   <uses-permission android:name="android.permission.VIBRATE"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
   <queries>
     <intent>
       <action android:name="android.intent.action.VIEW"/>
@@ -33,11 +34,18 @@
         <data android:scheme="exp+bolt-expo-nativewind"/>
       </intent-filter>
     </activity>
+    
+    <!-- SMS Receiver for foreground and background SMS processing -->
     <receiver android:name=".SmsReceiver" android:exported="true">
       <intent-filter android:priority="1000">
         <action android:name="android.provider.Telephony.SMS_RECEIVED" />
       </intent-filter>
     </receiver>
+
+    <!-- Headless JS Task Service for background SMS processing -->
+    <service 
+      android:name=".SmsHeadlessTaskService" 
+      android:exported="false" />
 
   </application>
 </manifest>
